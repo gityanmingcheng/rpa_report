@@ -5,7 +5,7 @@
       <button :disabled="isWatching" @click="startWatching">开始监控</button>
       <button :disabled="!isWatching" @click="stopWatching">停止监控</button>
     </div>
-    <div ref="logContent" class="log-content">
+    <div ref="logContent" class="log-content" @scroll="handleScroll">
       <div v-for="(line, index) in logLines" :key="index">
         {{ line }}
       </div>
@@ -14,7 +14,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, onUnmounted, nextTick, watch } from 'vue'
+import { ref, onUnmounted, nextTick, watch, onMounted } from 'vue'
 
 const props = defineProps<{
   defaultLogPath: string
@@ -24,6 +24,7 @@ const logPath = ref('')
 const logLines = ref<string[]>([])
 const isWatching = ref(false)
 const logContent = ref<HTMLElement | null>(null)
+const userScrolling = ref(false)
 
 // 监听 defaultLogPath 的变化
 watch(
@@ -85,10 +86,34 @@ const updateHandler = (data: { watcherId: string; line: string }) => {
 // 组件挂载时添加监听器
 window.electronAPI.onLogUpdate(updateHandler)
 
-// 组件销毁时清理监听器
+// 监听 logLines 的变化
+watch(logLines, async () => {
+  await nextTick()
+  if (!userScrolling.value && logContent.value) {
+    logContent.value.scrollTop = logContent.value.scrollHeight
+  }
+})
+
+// 处理用户滚动事件
+const handleScroll = () => {
+  if (logContent.value) {
+    const { scrollTop, scrollHeight, clientHeight } = logContent.value
+    userScrolling.value = scrollTop + clientHeight < scrollHeight
+  }
+}
+
+// 进入页面时自动滚动到底部
+onMounted(() => {
+  if (logContent.value) {
+    logContent.value.scrollTop = logContent.value.scrollHeight
+  }
+})
+
+// 组件销毁时清理
 onUnmounted(() => {
   window.electronAPI.removeLogListener()
   stopWatching()
+  userScrolling.value = false
 })
 </script>
 

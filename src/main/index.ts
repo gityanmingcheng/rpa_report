@@ -65,7 +65,7 @@ function startBackendService(): void {
       console.log('原始后端输出:', output)
 
       // 使用正则表达式匹配端口号
-      const portMatch = output.match(/Flask 服务启动的端口: (\d+)/)
+      const portMatch = output.match(/Flask port: (\d+)/)
       if (portMatch) {
         const port = parseInt(portMatch[1])
         console.log('检测到后端端口:', port)
@@ -105,7 +105,7 @@ function startBackendService(): void {
 function stopBackendService(): void {
   if (backendProcess) {
     console.log('正在关闭后端服务...')
-    
+
     try {
       // Windows 环境下使用 taskkill 强制结束进程树
       if (process.platform === 'win32') {
@@ -117,7 +117,7 @@ function stopBackendService(): void {
       } else {
         // 非 Windows 环境使用 kill
         backendProcess.kill('SIGTERM')
-        
+
         // 给一个短暂的超时，如果进程还在运行，则强制终止
         setTimeout(() => {
           if (backendProcess) {
@@ -351,7 +351,7 @@ function getSystemConfigPath(): string {
   const baseDir = isDev
     ? join(app.getAppPath(), 'resources', 'backend')
     : join(process.resourcesPath, 'backend')
-  
+
   return join(baseDir, process.platform, 'system.ini')
 }
 
