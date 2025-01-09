@@ -1,5 +1,5 @@
-appId: com.electron.app
-productName: electron-app
+appId: com.auto-report.app
+productName: auto-report
 directories:
   buildResources: build
 files:
@@ -16,12 +16,21 @@ extraResources:
     to: "backend"
     filter: ["**/*"]
 win:
-  executableName: electron-app
+  executableName: auto-report
 nsis:
   artifactName: ${name}-${version}-setup.${ext}
   shortcutName: ${productName}
   uninstallDisplayName: ${productName}
   createDesktopShortcut: always
+  oneClick: false
+  allowToChangeInstallationDirectory: true
+  installerIcon: "build/icon.ico"
+  uninstallerIcon: "build/icon.ico"
+  installerHeaderIcon: "build/icon.ico"
+  createStartMenuShortcut: true
+  menuCategory: false
+  perMachine: false
+  deleteAppDataOnUninstall: true
 mac:
   entitlementsInherit: build/entitlements.mac.plist
   extendInfo:

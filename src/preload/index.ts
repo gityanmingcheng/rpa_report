@@ -26,6 +26,9 @@ contextBridge.exposeInMainWorld('electronAPI', {
 })
 
 contextBridge.exposeInMainWorld('electron', {
+  process: {
+    versions: process.versions
+  },
   getLogPath: (isError: boolean) => ipcRenderer.invoke('get-log-path', isError),
   onBackendReady: (callback: (port: number) => void) => {
     ipcRenderer.on('backend-ready', (_event, port) => callback(port))
@@ -68,6 +71,13 @@ declare global {
       selectFilePath: () => Promise<string | null>
       readSystemConfig: () => Promise<string>
       saveSystemConfig: (content: string) => Promise<boolean>
+      process: {
+        versions: {
+          electron: string
+          chrome: string
+          node: string
+        }
+      }
     }
     // ... 其他类型定义保持不变
   }

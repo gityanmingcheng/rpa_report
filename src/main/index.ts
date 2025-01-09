@@ -45,7 +45,19 @@ function startBackendService(): void {
     // )
 
     // 启动后端进程
-    backendProcess = spawn(backendPath)
+    backendProcess = spawn(backendPath, [], {
+      env: { ...process.env, PYTHONIOENCODING: 'utf-8' },
+      // 添加 encoding 选项
+      stdio: ['pipe', 'pipe', 'pipe']
+    })
+
+    // 设置输出流的编码
+    if (backendProcess.stdout) {
+      backendProcess.stdout.setEncoding('utf-8')
+    }
+    if (backendProcess.stderr) {
+      backendProcess.stderr.setEncoding('utf-8')
+    }
 
     // 监听后端进程输出，等待端口配置写入
     backendProcess.stdout?.on('data', (data) => {
@@ -93,9 +105,41 @@ function startBackendService(): void {
 function stopBackendService(): void {
   if (backendProcess) {
     console.log('正在关闭后端服务...')
-    backendProcess.kill()
-    backendProcess = null
+    
+    try {
+      // Windows 环境下使用 taskkill 强制结束进程树
+      if (process.platform === 'win32') {
+        const pid = backendProcess.pid
+        if (pid) {
+          // 使用 /T 参数终止进程树，/F 强制终止
+          require('child_process').execSync(`taskkill /pid ${pid} /T /F`)
+        }
+      } else {
+        // 非 Windows 环境使用 kill
+        backendProcess.kill('SIGTERM')
+        
+        // 给一个短暂的超时，如果进程还在运行，则强制终止
+        setTimeout(() => {
+          if (backendProcess) {
+            backendProcess.kill('SIGKILL')
+          }
+        }, 1000)
+      }
+    } catch (error) {
+      console.error('终止后端进程时出错:', error)
+    } finally {
+      backendProcess = null
+    }
   }
+}
+
+// 添加一个清理函数，在应用退出时调用
+function cleanup() {
+  stopBackendService()
+  // 确保等待一段时间后再退出应用
+  setTimeout(() => {
+    app.quit()
+  }, 1000)
 }
 
 function createWindow(): void {
@@ -193,15 +237,14 @@ app.whenReady().then(() => {
 // for applications and their menu bar to stay active until the user quits
 // explicitly with Cmd + Q.
 app.on('window-all-closed', () => {
-  stopBackendService()
+  cleanup()
   if (process.platform !== 'darwin') {
     app.quit()
   }
 })
 
-// 如果应用被强制退出，也要确保后端服务关闭
 app.on('before-quit', () => {
-  stopBackendService()
+  cleanup()
 })
 
 // In this file you can include the rest of your app"s specific main process

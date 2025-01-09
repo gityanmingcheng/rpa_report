@@ -26,7 +26,7 @@ const parseText = ref('')
 const isEdit = ref(false)
 const currentConfig = ref<Config | null>(null)
 const templateFields = ref<string[]>([])
-const previewVisible = ref(false)
+
 
 // 区分列表预览和编辑预览的状态
 const listPreviewVisible = ref(false)
@@ -41,12 +41,15 @@ const refreshing = ref(false)
 
 // 获取配置列表
 const fetchConfigs = async () => {
-  if (!backendPort.value) return
+  if (!backendPort.value) {
+    ElMessage.warning('后端服务未连接')
+    return
+  }
 
   try {
     console.log('开始获取配置列表...')
-    const response = await window.electron.serverApi.request(
-      backendPort.value,
+    const response: any = await window.electron.serverApi.request(
+      backendPort.value as number,
       'GET',
       '/api/data',
       null
@@ -70,7 +73,7 @@ const fetchTemplateFields = async () => {
 
   try {
     console.log('开始获取模板字段...')
-    const response = await window.electron.serverApi.request(
+    const response: any = await window.electron.serverApi.request(
       backendPort.value,
       'GET',
       '/api/file/getTemHeader',
@@ -100,7 +103,6 @@ const fieldMappings = ref<FieldMapping[]>([])
 // 打开对话框
 const openDialog = (config?: Config) => {
   if (config) {
-    
     // 编辑模式
     isEdit.value = true
     currentConfig.value = config
@@ -182,7 +184,11 @@ const handleSubmit = async () => {
     (mapping) => mapping.templateField && mapping.userField
   )
 
-  const submitData = {
+  const submitData: {
+    name: string;
+    mappings: { templateField: string; userField: string; }[];
+    _id?: string;
+  } = {
     name: configName.value,
     mappings: validMappings.map((mapping) => ({
       templateField: String(mapping.templateField),
@@ -198,7 +204,7 @@ const handleSubmit = async () => {
     const serializedData = JSON.stringify(submitData)
     console.log('提交的数据:', serializedData)
 
-    const response = await window.electron.serverApi.request(
+    const response: any = await window.electron.serverApi.request(
       backendPort.value,
       'POST',
       '/api/data',
@@ -258,13 +264,13 @@ const addMapping = () => {
   })
 }
 
-// 切换预览显示
-const togglePreview = () => {
-  previewVisible.value = !previewVisible.value
-}
-
 // 删除配置
 const deleteConfig = async (id: string) => {
+  if (!backendPort.value) {
+    ElMessage.error('后端服务未连接')
+    return
+  }
+
   try {
     // 显示确认对话框
     await ElMessageBox.confirm('确定要删除这条配置吗？删除后无法恢复。', '删除确认', {
@@ -275,7 +281,7 @@ const deleteConfig = async (id: string) => {
 
     // 用户确认后，调用删除接口
     const response: any = await window.electron.serverApi.request(
-      backendPort.value,
+      backendPort.value, // 此时已确保 backendPort.value 不为 null
       'GET',
       `/api/data/delete/${id}`,
       null
@@ -423,7 +429,7 @@ const parseExcelHeaders = async () => {
   try {
     uploadStatus.value = 'uploading'
     const response: any = await window.electron.serverApi.request(
-      backendPort.value,
+      backendPort.value as number,
       'POST',
       '/api/file/parse_excel',
       {
@@ -503,7 +509,7 @@ const handleScroll = (e: Event) => {
 // 刷新列表
 const refreshList = async () => {
   if (!backendPort.value || refreshing.value) return
-  
+
   try {
     refreshing.value = true
     await fetchConfigs() // 重新获取配置列表
@@ -522,14 +528,8 @@ const refreshList = async () => {
     <div class="header">
       <h2>配置管理</h2>
       <div class="header-buttons">
-        <button 
-          class="refresh-btn" 
-          @click="refreshList"
-          :disabled="refreshing || !backendPort"
-        >
-          <span class="btn-icon" :class="{ 'rotating': refreshing }">
-            🔄
-          </span>
+        <button class="refresh-btn" :disabled="refreshing || !backendPort" @click="refreshList">
+          <span class="btn-icon" :class="{ rotating: refreshing }"> 🔄 </span>
           {{ refreshing ? '刷新中...' : '刷新列表' }}
         </button>
         <button class="config-btn" @click="openSystemConfig">
@@ -637,8 +637,8 @@ const refreshList = async () => {
             <button
               type="button"
               class="parse-btn"
-              @click="parseExcelHeaders"
               :disabled="!filePath || uploadStatus === 'uploading'"
+              @click="parseExcelHeaders"
             >
               {{ uploadStatus === 'uploading' ? '解析中...' : '解析表头' }}
             </button>
@@ -737,12 +737,12 @@ const refreshList = async () => {
             </div>
           </div>
           <textarea
+            ref="textareaRef"
             v-model="systemConfigContent"
             class="config-textarea"
             spellcheck="false"
             placeholder="正在加载配置..."
             @scroll="handleScroll"
-            ref="textareaRef"
           ></textarea>
         </div>
         <div class="editor-footer">

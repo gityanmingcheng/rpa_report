@@ -5,7 +5,7 @@ import { ref, inject, computed } from 'vue'
 const backendPort = inject('backendPort', ref<number | null>(null))
 const backendStatus = inject('backendStatus', ref<'连接中' | '已连接' | '已断开'>('连接中'))
 const uploadStatus = ref<'idle' | 'uploading' | 'success' | 'error'>('idle')
-const uploadResult = ref<string | null>(null)
+const uploadResult = ref<string | string[] | null>(null)
 const filePath = ref<string>('')
 const isDragging = ref(false)
 
@@ -84,8 +84,11 @@ const handleDragLeave = (event: DragEvent) => {
 
 // 格式化上传结果
 const formattedUploadResult = computed(() => {
-  if (uploadResult.value && typeof uploadResult.value === 'object' && uploadResult.value) {
-    return uploadResult.value.join('\n') // 将数组转换为字符串
+  if (uploadResult.value) {
+    if (Array.isArray(uploadResult.value)) {
+      return uploadResult.value.join('\n')
+    }
+    return uploadResult.value
   }
   return ''
 })
@@ -96,29 +99,8 @@ const handleFocus = (event: FocusEvent) => {
   textarea.select() // 选中内容
 }
 
-// 模拟上传文件的函数
-const uploadFile = async () => {
-  // 模拟文件上传并返回结果
-  uploadStatus.value = 'uploading'
-  try {
-    // 假设这是上传后的结果
-    const result = await fakeUploadFunction()
-    uploadResult.value = result // 更新 uploadResult
-    uploadStatus.value = 'success'
-  } catch (error) {
-    uploadStatus.value = 'error'
-    uploadResult.value = null // 清空结果
-  }
-}
 
 // 模拟的上传函数
-const fakeUploadFunction = async () => {
-  return new Promise((resolve) => {
-    setTimeout(() => {
-      resolve({ data: ['结果1', '结果2', '结果3'] }) // 模拟返回数据
-    }, 2000)
-  })
-}
 </script>
 
 <template>
