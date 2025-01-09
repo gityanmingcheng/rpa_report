@@ -9,10 +9,12 @@ import { statSync } from 'fs'
 import { execSync } from 'child_process'
 import { apiService } from './api/apiService'
 import { readFile, writeFile } from 'fs/promises'
+import { readFileSync } from 'fs'
 
 // 在文件顶部声明 mainWindow
 let mainWindow: BrowserWindow | null = null
 let backendProcess: ChildProcess | null = null
+let lastPosition: number = 0
 
 function startBackendService(): void {
   try {
@@ -376,5 +378,29 @@ ipcMain.handle('save-system-config', async (_, content: string) => {
   } catch (error) {
     console.error('保存系统配置失败:', error)
     throw error
+  }
+})
+
+
+
+// 添加 IPC 处理器
+ipcMain.handle('request-log-update', async (_event, { logPath, watcherId }) => {
+  try {
+    const content = readFileSync(logPath, 'utf-8')
+    if (content.length > lastPosition) {
+      // 只发送新增的内容
+      const newContent = content.slice(lastPosition)
+      lastPosition = content.length
+      
+      // 按行分割并发送
+      const lines = newContent.split(/\r?\n/)
+      lines.forEach(line => {
+        if (line) {
+          mainWindow?.webContents.send('log-update', { watcherId, line })
+        }
+      })
+    }
+  } catch (error) {
+    console.error('读取日志文件失败:', error)
   }
 })

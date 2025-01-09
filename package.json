@@ -24,7 +24,9 @@
     "@electron-toolkit/preload": "^3.0.0",
     "@electron-toolkit/utils": "^3.0.0",
     "axios": "^1.7.9",
-    "element-plus": "^2.9.2"
+    "element-plus": "^2.9.2",
+    "chokidar": "^3.5.3",
+    "lodash": "^4.17.21"
   },
   "devDependencies": {
     "@electron-toolkit/eslint-config": "^1.0.2",

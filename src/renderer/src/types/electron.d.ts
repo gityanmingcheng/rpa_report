@@ -5,5 +5,6 @@ interface Window {
     stopLogWatch: () => void
     onLogUpdate: (callback: ({ watcherId: string, line: string }) => void) => void
     removeLogListener: () => void
+    requestLogUpdate: (logPath: string, watcherId: string) => Promise<void>
   }
 }

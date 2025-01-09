@@ -15,4 +15,5 @@ interface ElectronAPI extends BaseElectronAPI {
   fetchRobots: (port: number) => Promise<BackendRobot[]>
   readSystemConfig: () => Promise<string>
   saveSystemConfig: (content: string) => Promise<boolean>
+  requestLogUpdate: (logPath: string, watcherId: string) => Promise<void>
 }

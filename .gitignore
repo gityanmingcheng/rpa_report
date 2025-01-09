@@ -4,3 +4,5 @@ out
 .DS_Store
 *.log*
 resources/backend/darwin/app
+/resources/backend/win32/app.exe
+/resources/backend/darwin/app.exe

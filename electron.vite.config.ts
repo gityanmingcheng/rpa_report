@@ -4,10 +4,25 @@ import vue from '@vitejs/plugin-vue'
 
 export default defineConfig({
   main: {
-    plugins: [externalizeDepsPlugin(), bytecodePlugin()]
+    plugins: [externalizeDepsPlugin(), bytecodePlugin()],
+    build: {
+      rollupOptions: {
+        external: [
+          'electron',
+          'electron-updater',
+          'chokidar',
+          'lodash'
+        ]
+      }
+    }
   },
   preload: {
-    plugins: [externalizeDepsPlugin(), bytecodePlugin()]
+    plugins: [externalizeDepsPlugin(), bytecodePlugin()],
+    build: {
+      rollupOptions: {
+        external: ['electron']
+      }
+    }
   },
   renderer: {
     resolve: {
