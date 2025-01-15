@@ -1,6 +1,9 @@
 <h1 align="center">electron-app</h1>
 
-<p align="center">An Electron application with Vue3 and TypeScript</p>
+<p align="center">An Electron application with Vue3 and TypeScript
+Auto Report 是一个基于 Electron 的桌面应用程序，使用 Vue 和 TypeScript 开发。该应用程序旨在提供一个用户友好的界面，用于管理和存储用户数据。用户可以通过简单的 API 端点进行数据的创建、读取、更新和删除操作。
+</p>
+
 
 <p align="center">
 <img src="https://img.shields.io/github/package-json/dependency-version/alex8088/electron-vite-boilerplate/dev/electron" alt="electron-version">
@@ -69,8 +72,6 @@ $ npm run build:mac
 $ npm run build:linux
 ```
 
-## Examples
+## 许可证
 
-- [electron-vite-bytecode-example](https://github.com/alex8088/electron-vite-bytecode-example), source code protection
-- [electron-vite-decorator-example](https://github.com/alex8088/electron-vite-decorator-example), typescipt decorator
-- [electron-vite-worker-example](https://github.com/alex8088/electron-vite-worker-example), worker and fork
+本项目使用 MIT 许可证，详细信息请查看 LICENSE 文件。
