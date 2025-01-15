@@ -15,7 +15,8 @@ Auto Report 是一个基于 Electron 的桌面应用程序，使用 Vue 和 Type
 </p>
 
 <p align='center'>
-<img src='./build/electron-vite-vue-ts.png'/>
+<img src='./build/img_main.png'/>
+<img src='./build/img_conf.png'/>
 </p>
 
 ## Features
