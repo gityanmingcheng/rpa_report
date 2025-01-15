@@ -22,7 +22,8 @@ contextBridge.exposeInMainWorld('electronAPI', {
   removeLogListener: () => {
     ipcRenderer.removeAllListeners('log-update')
   },
-  onLogError: (callback) => ipcRenderer.on('log-error', (_event, error) => callback(error))
+  onLogError: (callback) => ipcRenderer.on('log-error', (_event, error) => callback(error)),
+  requestLogUpdate: (logPath: string, watcherId: string) => ipcRenderer.invoke('request-log-update', { logPath, watcherId })
 })
 
 contextBridge.exposeInMainWorld('electron', {

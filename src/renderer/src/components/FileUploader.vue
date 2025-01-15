@@ -1,13 +1,60 @@
 <!-- eslint-disable @typescript-eslint/no-explicit-any -->
 <script setup lang="ts">
-import { ref, inject, computed } from 'vue'
+import { ref, inject, computed, onMounted } from 'vue'
 
 const backendPort = inject('backendPort', ref<number | null>(null))
 const backendStatus = inject('backendStatus', ref<'连接中' | '已连接' | '已断开'>('连接中'))
 const uploadStatus = ref<'idle' | 'uploading' | 'success' | 'error'>('idle')
 const uploadResult = ref<string | string[] | null>(null)
+const uploadCount = ref<number | null>(0)
 const filePath = ref<string>('')
 const isDragging = ref(false)
+
+// 添加 TypeScript 类型声明
+declare global {
+  interface Window {
+    sensors: any;
+  }
+}
+
+const initSensors = (retryCount = 0) => {
+  console.log('尝试初始化神策...', retryCount)
+  
+  if (retryCount >= 3) {
+    console.error('神策初始化失败，已达到最大重试次数')
+    return
+  }
+
+  try {
+    if (window.sensorsDataAnalytic201505) {
+      window.sensors = window.sensorsDataAnalytic201505
+      window.sensors.init({
+        server_url: 'https://shence8006.ygibao.com/sa?project=KHFW',
+        autoTrack: true,
+        show_log: true,
+        is_debug: true,
+        send_type: 'beacon'
+      })
+      console.log('神策初始化成功')
+    } else {
+      // 如果 SDK 未加载，延迟后重试
+      setTimeout(() => {
+        initSensors(retryCount + 1)
+      }, 1000)
+    }
+  } catch (error) {
+    console.error('神策初始化出错:', error)
+    // 发生错误时也重试
+    setTimeout(() => {
+      initSensors(retryCount + 1)
+    }, 1000)
+  }
+}
+
+// 组件挂载时初始化
+onMounted(() => {
+  initSensors()
+})
 
 const selectFile = async () => {
   try {
@@ -16,6 +63,8 @@ const selectFile = async () => {
       if (!/\.(xls|xlsx)$/i.test(selectedPath)) {
         uploadStatus.value = 'error'
         uploadResult.value = '请选择 Excel 文件 (xls/xlsx 格式)'
+        // 清空文件路径
+        filePath.value = ''
         return
       }
       uploadStatus.value = 'idle'
@@ -24,12 +73,42 @@ const selectFile = async () => {
     }
   } catch (error) {
     console.error('选择文件失败:', error)
+    // 发生错误时也清空文件路径
+    filePath.value = ''
+    uploadStatus.value = 'error'
+    uploadResult.value = '选择文件失败: ' + (error instanceof Error ? error.message : String(error))
   }
+}
+
+// 添加一个清理方法
+const clearFileInput = () => {
+  filePath.value = ''
+  uploadResult.value = null
+  uploadStatus.value = 'idle'
 }
 
 interface UploadResponse {
   message: string
   success: boolean
+}
+
+const trackEvent = (eventName: string, properties: Record<string, any>) => {
+  try {
+    if (window.sensors && typeof window.sensors.track === 'function') {
+      window.sensors.track(eventName, {
+        ...properties,
+        timestamp: new Date().getTime()
+      }, (success: boolean) => {
+        if (success) {
+          console.log('埋点上报成功:', eventName, properties)
+        } else {
+          console.error('埋点上报失败:', eventName, properties)
+        }
+      })
+    }
+  } catch (error) {
+    console.error('埋点调用失败:', error)
+  }
 }
 
 const handleSubmit = async () => {
@@ -38,6 +117,8 @@ const handleSubmit = async () => {
   }
 
   try {
+
+
     uploadStatus.value = 'uploading'
     console.log('开始提交文件:', filePath.value)
     const response: any = await window.electron.serverApi.request<UploadResponse>(
@@ -48,27 +129,44 @@ const handleSubmit = async () => {
     )
     console.log('提交结果:', response)
     uploadStatus.value = response.success ? 'success' : 'error'
-    uploadResult.value = response.data
+    uploadResult.value = response.data.datalist
+    uploadCount.value = response.data.count
+    // 使用封装的埋点函数
+    trackEvent('c_rap_useEvent', {
+      file_path: filePath.value,
+      status: backendStatus.value,
+      count: response.data.count,
+    })
   } catch (error) {
     console.error('提交失败:', error)
     uploadStatus.value = 'error'
     uploadResult.value = '提交失败: ' + (error instanceof Error ? error.message : String(error))
+    // 使用封装的埋点函数
+    trackEvent('c_rap_useEvent', {
+      file_path: filePath.value,
+      status: backendStatus.value,
+      message: '提交失败',
+    })
   }
 }
 
 const handleDrop = (event: DragEvent) => {
   event.preventDefault()
   isDragging.value = false
-  const file = event.dataTransfer?.files[0]
-  if (file) {
-    if (!/\.(xls|xlsx)$/i.test(file.path)) {
+
+  const files = event.dataTransfer?.files
+  if (files && files.length > 0) {
+    const file = files[0]
+    if (!/\.(xls|xlsx)$/i.test(file.name)) {
       uploadStatus.value = 'error'
       uploadResult.value = '请选择 Excel 文件 (xls/xlsx 格式)'
+      // 清空文件路径
+      filePath.value = ''
       return
     }
+    filePath.value = file.path
     uploadStatus.value = 'idle'
     uploadResult.value = ''
-    filePath.value = file.path
   }
 }
 

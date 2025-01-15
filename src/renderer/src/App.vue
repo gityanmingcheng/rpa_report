@@ -37,8 +37,9 @@ const checkBackendStatus = async () => {
       backendStatus.value = '连接中'
       return
     }
-    console.log('portToTry=', portToTry)
-
+    if (backendStatus.value == '已连接'){
+      return
+    }
     const response = await window.electron.serverApi.request(portToTry, 'GET', '/', null)
 
     if (response) {
@@ -102,7 +103,7 @@ onMounted(async () => {
   // 增加初始状态检查
   await checkBackendStatus()
   // 调整检查间隔，可以根据需要调整频率
-  setInterval(checkBackendStatus, 30000)
+  setInterval(checkBackendStatus, 3000)
 })
 </script>
 
@@ -126,7 +127,7 @@ onMounted(async () => {
 
     <div class="content-container">
       <div v-show="activeTab === 'robot'" class="table-container">
-      
+
         <FileUploader />
       </div>
 

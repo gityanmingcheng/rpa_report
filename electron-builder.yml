@@ -15,8 +15,20 @@ extraResources:
   - from: "resources/backend"
     to: "backend"
     filter: ["**/*"]
+  - from: "src/renderer/public"
+    to: "public"
+    filter: ["**/*"]
+
+# Windows 配置
 win:
   executableName: auto-report
+  icon: "build/icon.ico"
+  target:
+    - target: nsis
+      arch:
+        - x64
+
+# NSIS 配置
 nsis:
   artifactName: ${name}-${version}-setup.${ext}
   shortcutName: ${productName}
@@ -31,16 +43,22 @@ nsis:
   menuCategory: false
   perMachine: false
   deleteAppDataOnUninstall: true
+
+# macOS 配置
 mac:
+  icon: "build/icon.icns"
   entitlementsInherit: build/entitlements.mac.plist
   extendInfo:
     - NSCameraUsageDescription: Application requests access to the device's camera.
     - NSMicrophoneUsageDescription: Application requests access to the device's microphone.
     - NSDocumentsFolderUsageDescription: Application requests access to the user's Documents folder.
     - NSDownloadsFolderUsageDescription: Application requests access to the user's Downloads folder.
-  notarize: false
+
+# DMG 配置
 dmg:
   artifactName: ${name}-${version}.${ext}
+
+# Linux 配置
 linux:
   target:
     - AppImage
@@ -48,11 +66,14 @@ linux:
     - deb
   maintainer: electronjs.org
   category: Utility
+
 appImage:
   artifactName: ${name}-${version}.${ext}
+
 npmRebuild: false
 publish:
   provider: generic
   url: https://example.com/auto-updates
+
 electronDownload:
   mirror: https://npmmirror.com/mirrors/electron/

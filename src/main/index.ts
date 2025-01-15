@@ -1,4 +1,4 @@
-import { app, shell, BrowserWindow, ipcMain, dialog } from 'electron'
+import { app, shell, BrowserWindow, ipcMain, dialog, Menu, MenuItem, globalShortcut } from 'electron'
 import { join } from 'path'
 import { electronApp, optimizer, is } from '@electron-toolkit/utils'
 import icon from '../../resources/icon.png?asset'
@@ -8,13 +8,18 @@ import { existsSync } from 'fs'
 import { statSync } from 'fs'
 import { execSync } from 'child_process'
 import { apiService } from './api/apiService'
-import { readFile, writeFile } from 'fs/promises'
+import { readFile, writeFile } from 'fs'
 import { readFileSync } from 'fs'
+import { promisify } from 'util'
 
 // 在文件顶部声明 mainWindow
 let mainWindow: BrowserWindow | null = null
 let backendProcess: ChildProcess | null = null
 let lastPosition: number = 0
+
+// 将回调式 API 转换为 Promise 式 API
+const readFileAsync = promisify(readFile)
+const writeFileAsync = promisify(writeFile)
 
 function startBackendService(): void {
   try {
@@ -155,7 +160,9 @@ function createWindow(): void {
     ...(process.platform === 'linux' ? { icon } : {}),
     webPreferences: {
       preload: join(__dirname, '../preload/index.js'),
-      sandbox: false
+      contextIsolation: true,  // 启用上下文隔离
+      nodeIntegration: true,   // 启用 Node 集成
+      sandbox: false           // 禁用沙箱
     }
   })
 
@@ -167,9 +174,9 @@ function createWindow(): void {
     mainWindow?.show()
   })
 
-  mainWindow?.webContents.setWindowOpenHandler((details) => {
-    shell.openExternal(details.url)
-    return { action: 'deny' }
+  mainWindow.webContents.on('new-window', (event, url) => {
+    event.preventDefault()
+    shell.openExternal(url)
   })
 
   // HMR for renderer base on electron-vite cli.
@@ -203,6 +210,107 @@ function createWindow(): void {
   mainWindow.on('closed', () => {
     stopBackendService()
     mainWindow = null
+  })
+
+  // 创建右键菜单
+  const contextMenu = Menu.buildFromTemplate([
+    {
+      label: '开发者工具',
+      accelerator: process.platform === 'darwin' ? 'Alt+Command+I' : 'Alt+Shift+I',
+      click: () => mainWindow.webContents.openDevTools()
+    },
+    { type: 'separator' },
+    {
+      label: '刷新页面',
+      accelerator: 'CmdOrCtrl+R',
+      click: () => mainWindow.webContents.reload()
+    },
+    {
+      label: '强制刷新',
+      accelerator: 'CmdOrCtrl+Shift+R',
+      click: () => mainWindow.webContents.reloadIgnoringCache()
+    },
+    { type: 'separator' },
+    {
+      label: '返回',
+      accelerator: 'Alt+Left',
+      click: () => mainWindow.webContents.goBack(),
+      enabled: mainWindow.webContents.canGoBack()
+    },
+    {
+      label: '前进',
+      accelerator: 'Alt+Right',
+      click: () => mainWindow.webContents.goForward(),
+      enabled: mainWindow.webContents.canGoForward()
+    }
+  ])
+
+  // 添加右键菜单
+  mainWindow.webContents.on('context-menu', (_, params) => {
+    contextMenu.popup()
+  })
+
+  // 创建应用菜单
+  const template: (Electron.MenuItemConstructorOptions | MenuItem)[] = [
+    {
+      label: '视图',
+      submenu: [
+        {
+          label: '开发者工具',
+          accelerator: process.platform === 'darwin' ? 'Alt+Command+I' : 'Alt+Shift+I',
+          click: () => mainWindow.webContents.openDevTools()
+        },
+        { type: 'separator' },
+        {
+          label: '重新加载',
+          accelerator: 'CmdOrCtrl+R',
+          click: () => mainWindow.webContents.reload()
+        },
+        {
+          label: '强制重新加载',
+          accelerator: 'CmdOrCtrl+Shift+R',
+          click: () => mainWindow.webContents.reloadIgnoringCache()
+        },
+        { type: 'separator' },
+        {
+          label: '实际大小',
+          accelerator: 'CmdOrCtrl+0',
+          click: () => mainWindow.webContents.setZoomLevel(0)
+        },
+        {
+          label: '放大',
+          accelerator: 'CmdOrCtrl+Plus',
+          click: () => {
+            const level = mainWindow.webContents.getZoomLevel()
+            mainWindow.webContents.setZoomLevel(level + 0.5)
+          }
+        },
+        {
+          label: '缩小',
+          accelerator: 'CmdOrCtrl+-',
+          click: () => {
+            const level = mainWindow.webContents.getZoomLevel()
+            mainWindow.webContents.setZoomLevel(level - 0.5)
+          }
+        }
+      ]
+    }
+  ]
+
+  // 设置应用菜单
+  const menu = Menu.buildFromTemplate(template)
+  Menu.setApplicationMenu(menu)
+
+  // 注册快捷键
+  globalShortcut.register('CommandOrControl+Shift+I', () => {
+    if (mainWindow) {
+      mainWindow.webContents.openDevTools()
+    }
+  })
+
+  // 窗口加载完成后显示
+  mainWindow.on('ready-to-show', () => {
+    mainWindow.show()
   })
 }
 
@@ -361,7 +469,7 @@ function getSystemConfigPath(): string {
 ipcMain.handle('read-system-config', async () => {
   try {
     const configPath = getSystemConfigPath()
-    const content = await readFile(configPath, 'utf-8')
+    const content = await readFileAsync(configPath, 'utf-8')
     return content
   } catch (error) {
     console.error('读取系统配置失败:', error)
@@ -373,15 +481,13 @@ ipcMain.handle('read-system-config', async () => {
 ipcMain.handle('save-system-config', async (_, content: string) => {
   try {
     const configPath = getSystemConfigPath()
-    await writeFile(configPath, content, 'utf-8')
+    await writeFileAsync(configPath, content, 'utf-8')
     return true
   } catch (error) {
     console.error('保存系统配置失败:', error)
     throw error
   }
 })
-
-
 
 // 添加 IPC 处理器
 ipcMain.handle('request-log-update', async (_event, { logPath, watcherId }) => {
@@ -403,4 +509,29 @@ ipcMain.handle('request-log-update', async (_event, { logPath, watcherId }) => {
   } catch (error) {
     console.error('读取日志文件失败:', error)
   }
+})
+
+// 然后在代码中使用这些 Promise 版本的函数
+async function readLogFile(path: string): Promise<string> {
+  try {
+    const content = await readFileAsync(path, 'utf-8')
+    return content
+  } catch (error) {
+    console.error('读取日志文件失败:', error)
+    throw error
+  }
+}
+
+async function writeLogFile(path: string, content: string): Promise<void> {
+  try {
+    await writeFileAsync(path, content, 'utf-8')
+  } catch (error) {
+    console.error('写入日志文件失败:', error)
+    throw error
+  }
+}
+
+// 在应用退出时注销快捷键
+app.on('will-quit', () => {
+  globalShortcut.unregisterAll()
 })
