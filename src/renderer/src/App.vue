@@ -3,6 +3,7 @@ import { ref, onMounted, provide } from 'vue'
 import LogViewer from './components/LogViewer.vue'
 import ConfigTable from './components/ConfigTable.vue'
 import FileUploader from './components/FileUploader.vue'
+import Setting from './components/Setting.vue'
 
 const activeTab = ref('robot')
 
@@ -37,7 +38,7 @@ const checkBackendStatus = async () => {
       backendStatus.value = '连接中'
       return
     }
-    if (backendStatus.value == '已连接'){
+    if (backendStatus.value == '已连接') {
       return
     }
     const response = await window.electron.serverApi.request(portToTry, 'GET', '/', null)
@@ -111,28 +112,50 @@ onMounted(async () => {
   <div class="app-container">
     <div class="tab-container">
       <div
-        v-for="tab in ['robot', 'log', 'config']"
+        v-for="tab in ['robot', 'log', 'setting', 'config']"
         :key="tab"
         :class="['tab-item', { active: activeTab === tab }]"
         @click="activeTab = tab"
       >
         <span class="tab-icon">
-          {{ tab === 'robot' ? '🤖' : tab === 'log' ? '📋' : '⚙️' }}
+          {{
+            tab === 'robot'
+              ? '🤖'
+              : tab === 'log'
+                ? '📋'
+                : tab === 'setting'
+                  ? '⚙️'
+                  : tab === 'config'
+                    ? '🔍'
+                    : ''
+          }}
         </span>
         <span class="tab-text">
-          {{ tab === 'robot' ? '机器人' : tab === 'log' ? '日志' : '配置' }}
+          {{
+            tab === 'robot'
+              ? '机器人'
+              : tab === 'log'
+                ? '日志'
+                : tab === 'setting'
+                  ? '设置'
+                  : tab === 'config'
+                    ? '配置'
+                    : ''
+          }}
         </span>
       </div>
     </div>
 
     <div class="content-container">
       <div v-show="activeTab === 'robot'" class="table-container">
-
         <FileUploader />
       </div>
 
       <div v-show="activeTab === 'log'" class="log-container">
         <LogViewer :default-log-path="normalLogPath" />
+      </div>
+      <div v-show="activeTab === 'setting'" class="setting-container">
+        <Setting />
       </div>
 
       <!-- <div v-show="activeTab === 'errlog'" class="log-container">

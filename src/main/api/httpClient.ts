@@ -11,7 +11,7 @@ export class HttpClient {
   private baseUrl: string
 
   constructor(port: number) {
-    // port = 60451
+    // port = 8080
     this.baseUrl = `http://localhost:${port}`
   }
 

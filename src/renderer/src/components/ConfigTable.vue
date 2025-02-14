@@ -3,6 +3,7 @@
 import { ref, inject, onMounted, computed } from 'vue'
 import { ElDialog, ElMessage, ElMessageBox } from 'element-plus'
 import 'element-plus/dist/index.css'
+import { areaData, findLocationByDistrict, getCities, getDistricts } from '../assets/area/area'
 
 interface Config {
   _id: string
@@ -15,6 +16,9 @@ interface Config {
 interface FieldMapping {
   templateField: string
   userField: string
+  defaultValue: string
+  options?: string[]
+  valueTransform?: (value: string) => string
 }
 
 const backendPort = inject('backendPort', ref<number | null>(null))
@@ -22,6 +26,7 @@ const backendPort = inject('backendPort', ref<number | null>(null))
 const configs = ref<Config[]>([])
 const dialogVisible = ref(false)
 const configName = ref('')
+const orgCode = ref('')
 const parseText = ref('')
 const isEdit = ref(false)
 const currentConfig = ref<Config | null>(null)
@@ -86,7 +91,9 @@ const fetchTemplateFields = async () => {
       // 初始化字段映射
       fieldMappings.value = templateFields.value.map((field) => ({
         templateField: field,
-        userField: ''
+        userField: '',
+        defaultValue: '',
+        options: undefined
       }))
     } else {
       ElMessage.error('获取模板字段失败')
@@ -99,32 +106,144 @@ const fetchTemplateFields = async () => {
 
 // 初始化 fieldMappings
 const fieldMappings = ref<FieldMapping[]>([])
+const settingsData = ref<Record<string, string[]>>({})
+
+// 获取设置数据
+const fetchSettingsData = async () => {
+  try {
+    const response = await window.electron.serverApi.request(
+      backendPort.value,
+      'GET',
+      '/api/set',
+      null
+    )
+    console.log('获取设置数据响应:', response)
+    if (response.ok) {
+      settingsData.value = response.data.reduce((acc: Record<string, string[]>, item: any) => {
+        acc[item._key] = item.option
+        return acc
+      }, {})
+      console.log('设置数据:', settingsData.value)
+    }
+    console.log('设置数据:', settingsData.value)
+  } catch (error) {
+    console.error('获取设置数据失败:', error)
+  }
+}
+
+// 初始化区县数据
+const getDistrictOptions = () => {
+  const allDistricts: string[] = []
+  const cities = Object.keys(areaData['河北省'].cities)
+  cities.forEach(city => {
+    const districts = areaData['河北省'].cities[city].districts
+    districts.forEach(district => {
+      allDistricts.push(`河北省-${city}-${district}`)
+    })
+  })
+  return allDistricts
+}
+
+// 处理模板字段变化
+const handleTemplateFieldChange = async (mapping: FieldMapping) => {
+  if (!mapping.templateField) {
+    mapping.options = undefined
+    mapping.defaultValue = ''
+    return
+  }
+
+  // 如果选择的是出险地点
+  if (mapping.templateField === '出险地点区/县级') {
+    mapping.options = getDistrictOptions()
+    mapping.defaultValue = ''
+    console.log('区县选项：', mapping.options) // 调试日志
+  } else {
+    // 其他字段使用原有的选项数据逻辑
+    const options = settingsData.value[mapping.templateField]
+    if (options) {
+      mapping.options = options
+      mapping.defaultValue = ''
+    } else {
+      mapping.options = undefined
+      mapping.defaultValue = ''
+    }
+  }
+}
+
+// 获取显示文本的计算函数
+const getDisplayText = (option: string) => {
+  const parts = option.split('-')
+  return parts[2] || option // 返回区县名称
+}
+
+// 获取选项值的计算函数
+const getOptionValue = (option: string, templateField: string) => {
+  if (templateField === '出险地点区/县级') {
+    return option // 返回完整的地址字符串
+  }
+  return option
+}
 
 // 打开对话框
-const openDialog = (config?: Config) => {
-  if (config) {
-    // 编辑模式
-    isEdit.value = true
-    currentConfig.value = config
-    configName.value = config.name
+const openDialog = async (config?: Config) => {
+  try {
+    // 如果还没有加载设置数据，先加载
+    if (Object.keys(settingsData.value).length === 0) {
+      await fetchSettingsData()
+    }
+    if (templateFields.value.length < 1) {
+      await fetchTemplateFields()
+    }
     filePath.value = ''
-    fieldMappings.value = [...config.mappings]
-  } else {
-    // 新增模式
-    isEdit.value = false
-    currentConfig.value = null
-    configName.value = ''
-    filePath.value = ''
-    // 使用当前模板字段初始化
-    fieldMappings.value = templateFields.value.map((field) => ({
-      templateField: field,
-      userField: ''
-    }))
+  
+    if (config) {
+      // 编辑模式
+      dialogTitle.value = '修改配置'
+      currentConfig.value = config
+      isEdit.value = true
+      configName.value = config.name
+      orgCode.value = config.orgCode || ''
+      
+      fieldMappings.value = await Promise.all(config.mappings.map(async (mapping: any) => {
+        const newMapping: FieldMapping = {
+          userField: mapping.userField,
+          templateField: mapping.templateField,
+          defaultValue: mapping.defaultValue || '',
+          options: undefined
+        }
+
+        // 如果是出险地点，直接设置选项
+        if (mapping.templateField === '出险地点区/县级') {
+          newMapping.options = getDistrictOptions()
+        } else if (mapping.templateField) {
+          const options = settingsData.value[mapping.templateField]
+          if (options) {
+            newMapping.options = options
+          }
+        }
+
+        return newMapping
+      }))
+    } else {
+      // 新建模式
+      dialogTitle.value = '新建配置'
+      currentConfig.value = null
+      isEdit.value = false
+      configName.value = ''
+      orgCode.value = ''
+      fieldMappings.value = [{
+        userField: '----',
+        templateField: '',
+        defaultValue: '',
+        options: undefined
+      }]
+    }
+    
+    showDialog.value = true
+  } catch (error) {
+    console.error('打开弹窗失败:', error)
+    ElMessage.error('打开弹窗失败')
   }
-  if (templateFields.value.length < 1) {
-    fetchTemplateFields()
-  }
-  dialogVisible.value = true
 }
 
 // 组件挂载时获取数据
@@ -132,17 +251,21 @@ onMounted(async () => {
   console.log('组件挂载，开始初始化...')
   await fetchTemplateFields()
   await fetchConfigs()
+  await fetchSettingsData()
 })
 
 // 关闭对话框时重置状态
 const handleClose = () => {
+  showDialog.value = false
   dialogVisible.value = false
   configName.value = ''
   parseText.value = ''
   // 重置为初始模板字段
   fieldMappings.value = templateFields.value.map((field) => ({
     templateField: field,
-    userField: ''
+    userField: '',
+    defaultValue: '',
+    options: undefined
   }))
 }
 
@@ -163,44 +286,32 @@ const previewData = computed(() => {
 
 // 表单验证状态
 const formValid = computed(() => {
-  return configName.value.trim() !== ''
+  return configName.value.trim() !== '' && orgCode.value.trim() !== ''
 })
 
 // 处理提交
 const handleSubmit = async () => {
-  // 表单验证
-  if (!formValid.value) {
-    ElMessage.warning('请输入配置名称')
-    return
-  }
-
-  if (!backendPort.value) {
-    ElMessage.error('后端服务未连接')
-    return
-  }
-
-  // 过滤掉未完成的映射
-  const validMappings = fieldMappings.value.filter(
-    (mapping) => mapping.templateField && mapping.userField
-  )
-
-  const submitData: {
-    name: string;
-    mappings: { templateField: string; userField: string; }[];
-    _id?: string;
-  } = {
-    name: configName.value,
-    mappings: validMappings.map((mapping) => ({
-      templateField: String(mapping.templateField),
-      userField: String(mapping.userField)
-    }))
-  }
-
-  if (isEdit.value && currentConfig.value) {
-    submitData._id = String(currentConfig.value._id)
-  }
-
   try {
+    if (!formValid.value) return
+
+    const submitData: ConfigData = {
+      name: configName.value.trim(),
+      orgCode: orgCode.value.trim(),
+      mappings: fieldMappings.value.map(mapping => ({
+        userField: mapping.userField,
+        templateField: mapping.templateField,
+        // 如果有值转换函数，使用转换后的值
+        defaultValue: mapping.valueTransform 
+          ? mapping.valueTransform(mapping.defaultValue)
+          : mapping.defaultValue
+      }))
+    }
+
+    if (isEdit.value && currentConfig.value) {
+      submitData._id = String(currentConfig.value._id)
+    }
+    console.log('submitData._id:', submitData._id)
+
     const serializedData = JSON.stringify(submitData)
     console.log('提交的数据:', serializedData)
 
@@ -216,9 +327,10 @@ const handleSubmit = async () => {
       await fetchConfigs()
       handleClose()
     }
+    showDialog.value = false
   } catch (error) {
-    console.error('提交的数据:', submitData)
-    ElMessage.error('保存失败：' + (error instanceof Error ? error.message : String(error)))
+    console.error('提交失败:', error)
+    ElMessage.error(error.message || '操作失败')
   }
 }
 
@@ -255,12 +367,11 @@ const closeEditPreview = () => {
 
 // 添加新的映射字段
 const addMapping = () => {
-  if (!fieldMappings.value) {
-    fieldMappings.value = [] // 确保数组已初始化
-  }
   fieldMappings.value.push({
+    userField: '----',
     templateField: '',
-    userField: ''
+    defaultValue: '',
+    options: undefined
   })
 }
 
@@ -402,7 +513,9 @@ const autoMatchTemplateFields = (headers: string[]) => {
 
     return {
       templateField: bestMatch,
-      userField: header
+      userField: header,
+      defaultValue: '',
+      options: undefined
     }
   })
 
@@ -521,6 +634,19 @@ const refreshList = async () => {
     refreshing.value = false
   }
 }
+
+// 弹窗相关的响应式变量
+const showDialog = ref(false)
+const dialogTitle = ref('新建配置')
+
+// 导出需要在模板中使用的函数和变量
+defineExpose({
+  openDialog,
+  showDialog,
+  dialogTitle,
+  configName,
+  fieldMappings
+})
 </script>
 
 <template>
@@ -536,7 +662,7 @@ const refreshList = async () => {
           <span class="btn-icon">⚙️</span>
           系统配置
         </button>
-        <button class="add-btn" @click="() => openDialog()">
+        <button class="add-btn" @click="openDialog()">
           <span class="btn-icon">+</span>
           新增模板
         </button>
@@ -585,11 +711,10 @@ const refreshList = async () => {
     </div>
 
     <el-dialog
-      v-model="dialogVisible"
-      :title="isEdit ? '编辑配置' : '新增配置'"
-      width="90%"
+      v-model="showDialog"
+      :title="dialogTitle"
+      width="98%"
       :close-on-click-modal="false"
-      :before-close="handleClose"
     >
       <div class="dialog-conten">
         <div class="form-group">
@@ -602,6 +727,19 @@ const refreshList = async () => {
                 class="form-input"
                 :class="{ invalid: !formValid && configName === '' }"
                 placeholder="请输入配置名称"
+                required
+              />
+            </div>
+          </div>
+          <div class="form-item">
+            <label class="form-label required">机构代码</label>
+            <div class="form-content">
+              <input
+                v-model="orgCode"
+                type="text"
+                class="form-input"
+                :class="{ invalid: !formValid && orgCode === '' }"
+                placeholder="请输入机构代码"
                 required
               />
             </div>
@@ -627,14 +765,13 @@ const refreshList = async () => {
               />
               <button
                 type="button"
-                class="select-file-btn"
+                class="parse-btn"
                 :disabled="uploadStatus === 'uploading'"
                 @click="selectFile"
               >
                 选择文件
               </button>
-            </div>
-            <button
+              <button
               type="button"
               class="parse-btn"
               :disabled="!filePath || uploadStatus === 'uploading'"
@@ -642,6 +779,8 @@ const refreshList = async () => {
             >
               {{ uploadStatus === 'uploading' ? '解析中...' : '解析表头' }}
             </button>
+            </div>
+            
           </div>
         </div>
 
@@ -680,7 +819,11 @@ const refreshList = async () => {
                 placeholder="请输入字段名称"
               />
               <span class="mapping-arrow">→</span>
-              <select v-model="mapping.templateField" class="template-field-select">
+              <select 
+                v-model="mapping.templateField" 
+                class="template-field-select"
+                @change="handleTemplateFieldChange(mapping)"
+              >
                 <option value="">请选择模板字段</option>
                 <option
                   v-for="field in templateFields"
@@ -691,6 +834,38 @@ const refreshList = async () => {
                   {{ field }}
                 </option>
               </select>
+              
+              <!-- 默认值输入区域 -->
+              <!-- <template v-if="mapping.templateField"> -->
+              <!-- <template v-if="mapping.templateField"> -->
+                <span class="mapping-arrow"></span>
+                <!-- 如果有选项数据，显示下拉框 -->
+                <select 
+                  v-if="mapping.options?.length"
+                  v-model="mapping.defaultValue"
+                  class="default-value-select"
+                >
+                  <option value="">请选择默认值</option>
+                  <option
+                    v-for="option in ( mapping.options)"
+                    :key="option"
+                    :value="option"
+                  >
+                    {{ option }}
+                  </option>
+                </select>
+               
+                <!-- 如果没有选项数据，显示输入框 -->
+                <input
+                  v-else
+                  v-model="mapping.defaultValue"
+                  type="text"
+                  class="default-value-input"
+                  placeholder="请输入默认值"
+                />
+                
+              <!-- </template> -->
+
               <button
                 type="button"
                 class="remove-mapping-btn"
@@ -940,13 +1115,13 @@ td {
 }
 
 .form-group {
+  display: flex;
+  gap: 20px;  /* 添加间距 */
   margin-bottom: 16px;
 }
 
 .form-item {
-  display: flex;
-  align-items: center;
-  gap: 16px;
+  flex: 1;  /* 让两个输入框平均分配空间 */
 }
 
 .form-label {
@@ -1035,7 +1210,9 @@ td {
 }
 
 .user-field,
-.template-field-select {
+.template-field-select,
+.default-value-select,
+.default-value-input {
   flex: 1;
   min-width: 200px;
   max-width: 300px;
@@ -1746,5 +1923,33 @@ td {
   to {
     transform: rotate(360deg);
   }
+}
+
+.default-value-select {
+  min-width: 200px;
+  padding: 6px 8px;
+  border: 1px solid #dcdfe6;
+  border-radius: 4px;
+  font-size: 14px;
+}
+
+/* 添加下拉框的最大高度和滚动条 */
+.default-value-select {
+  max-height: 300px;
+  overflow-y: auto;
+}
+
+/* 自定义滚动条样式 */
+.default-value-select::-webkit-scrollbar {
+  width: 6px;
+}
+
+.default-value-select::-webkit-scrollbar-thumb {
+  background-color: #c0c4cc;
+  border-radius: 3px;
+}
+
+.default-value-select::-webkit-scrollbar-track {
+  background-color: #f5f7fa;
 }
 </style>

@@ -497,7 +497,7 @@ ipcMain.handle('request-log-update', async (_event, { logPath, watcherId }) => {
       // 只发送新增的内容
       const newContent = content.slice(lastPosition)
       lastPosition = content.length
-      
+
       // 按行分割并发送
       const lines = newContent.split(/\r?\n/)
       lines.forEach(line => {
